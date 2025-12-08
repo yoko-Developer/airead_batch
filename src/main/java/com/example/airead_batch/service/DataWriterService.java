@@ -1,6 +1,6 @@
 package com.example.airead_batch.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -11,29 +11,29 @@ public class DataWriterService {
     public DataWriterService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
-    private static final String INSERT_SQL = "INSERT INTO t_airead_data (id,name,address) VALUES (0000, "hoge", "huga");
+    private static final String INSERT_SQL = "INSERT INTO non_consolidated_notes (dummy_id, year_end_executive_count, year_end_employee_count) " +
+            "VALUES (?, ?, ?)";
 
     /**
-     * 読み取った1行をDBに書き込む
+     * csvから2つのデータを受け取る
      * @param data
      */
     public void writeDataToDb(String[] data) {
-        if (data.length != 3) {
-            System.err.print("データ形式が不正");
-            return;
+        if (data.length != 2) {
+            throw new IllegalArgumentException("csvデータの列数が不正");
         }
 
         try {
-            // 1レコードずつ実行
+            // 1レコードずつSQLを実行
             jdbcTemplate.update(
                 INSERT_SQL,
-                data[0].trim(), // ID
-                data[1].trim(), // name
-                data[2].trim()  // address
+                "0",            // ID:固定値0
+                data[0].trim(), // year_end_executive_count (期末役員数)
+                data[1].trim()  // year_end_employee_count (期末従業員数)
             );
 
         } catch (Exception e) {
-            System.out.println("DB書き込み中にエラー発生: " + e.getMessage());
+            System.err.println("DB書き込み中にエラー発生: " + e.getMessage());
             throw new RuntimeException("DB書き込み失敗", e);
         }
     }
