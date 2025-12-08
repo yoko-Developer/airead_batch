@@ -1,4 +1,4 @@
-package com.example.airead_batch;
+package com.example.airead_batch.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -6,8 +6,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class DataWriterService {
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
+
+    public DataWriterService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
     private static final String INSERT_SQL = "INSERT INTO t_airead_data (id,name,address) VALUES (0000, "hoge", "huga");
 
     /**
@@ -21,20 +24,17 @@ public class DataWriterService {
         }
 
         try {
-            int result = jdbcTemplate.update(
-                    INSERT_SQL,
-                    data[0].trim(),
-                    data[1].trim(),
-                    data[2].trim()
+            // 1レコードずつ実行
+            jdbcTemplate.update(
+                INSERT_SQL,
+                data[0].trim(), // ID
+                data[1].trim(), // name
+                data[2].trim()  // address
             );
-
-            // if (result > 0){} // 成功時の処理
 
         } catch (Exception e) {
             System.out.println("DB書き込み中にエラー発生: " + e.getMessage());
+            throw new RuntimeException("DB書き込み失敗", e);
         }
     }
-
-
-
 }
