@@ -3,6 +3,9 @@ package com.example.airead_batch.service;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+/**
+ * CSV の行から必要な値（役員数・従業員数）を取り出してデータベースに書き込むクラス
+ */
 @Service
 public class DataWriterService {
 
@@ -20,8 +23,10 @@ public class DataWriterService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    // CSVの1行を読み込む
-    // data[0] = ItemName, data[4] = Value
+    /**
+     * csvの1行を読み込む
+     * @param data
+     */
     public void processCsvRow(String[] data) {
 
         // 必須列チェック（ItemNameとValueが最低限必要）
