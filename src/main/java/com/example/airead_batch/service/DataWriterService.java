@@ -50,20 +50,27 @@ public class DataWriterService {
      */
     public void writeDataToDbFinal() {
 
+        // 役員数、従業員数がどちらもNULLの場合はスキップ
+        if (executiveCount == null && employeeCount == null) {
+            System.out.println("DB登録に必要な項目がないためスキップ");
+            return;
+        }
+
         // 役員数と従業員数のどちらかあればDBに書き込む
         if (executiveCount != null && employeeCount != null) {
             try {
                 jdbcTemplate.update(
                         INSERT_SQL,
-                        "0", // dummy_id
+                        "0", // dummy_id (結合テストが成功したら、このIDをユニークな値に変更する必要があります)
                         executiveCount,
                         employeeCount
                 );
 
+                // DB登録成功メッセージを分かりやすく出力 (nullの場合は"NULL"と表示)
                 String execCount = (executiveCount != null) ? executiveCount.toString() : "NULL";
                 String empCount = (employeeCount != null) ? employeeCount.toString() : "NULL";
 
-                System.out.println("DB登録成功！役員数:" + executiveCount + ", 従業員数:" + employeeCount);
+                System.out.println("DB登録成功！役員数:" + execCount + ", 従業員数:" + empCount);
 
                 // 登録後、一時保存した値をリセット
                 executiveCount = null;
