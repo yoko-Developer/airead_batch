@@ -30,43 +30,40 @@ public class CsvFileReader implements CommandLineRunner {
 
     /**
      * バッチ起動時に実行されるメソッド
-     * @param args 全てのファイルを処理する
+     * @param args AIReadから渡される新規CSVファイルのパス
      * @throws Exception ファイル入出力の例外処理
      */
     @Override
     public void run(String[] args) throws Exception {
-        File folder = new File(INPUT_DIR);
 
-        // _detail.csv を処理
-        File[] listOfFiles = folder.listFiles(new FilenameFilter() {
-            @Override
-            public boolean accept(File dir, String name) {
-                return name.toLowerCase().endsWith("_detail.csv");
-            }
-        });
-
-        if (listOfFiles == null || listOfFiles.length == 0) {
-            System.out.println("処理対象のCSVファイルがない");
-            System.exit(0);
+        if (args.length < 1) {
+            // AIReadからファイルパスが渡されなかった場合はエラー終了
+            // (単体テスト時は、実行構成の引数にテスト用CSVパスを設定する必要があります)
+            System.out.println("エラー: 処理対象ファイルが指定されていません。INI設定または実行引数を確認してください。");
+            System.exit(1);
         }
 
-        System.out.println("対象ファイル数: " + listOfFiles.length + "件");
+        // AIReadから渡された新規ファイルパスを取得
+        String filePath = args[0];
 
-        for (File file : listOfFiles) {
-            if (file.isFile()) {
-                String filePath = file.getAbsolutePath();
-                System.out.println("--- ファイル処理開始: " + file.getName() + " ---");
-                try {
-                    // CSVのすべての行を dataWriterService に渡す
-                    processSingleFile(filePath);
-                } catch (IOException e) {
-                    System.err.println("ファイル読み込みエラー: " + filePath);
-                    e.printStackTrace();
-                }
-            }
+        File file = new File(filePath);
+        if (!file.exists() || file.isDirectory()) {
+            System.out.println("エラー: 渡されたファイルが見つかりません: " + filePath);
+            System.exit(1);
         }
 
-        // 全ファイルの処理が完了した後、データをDBに書き込む
+        // 全ファイルスキャンは廃止し、渡されたファイル一つだけを処理
+        System.out.println("--- ファイル処理開始 (新規ファイル): " + file.getName() + " ---");
+
+        try {
+            // CSVのすべての行を dataWriterService に渡す
+            processSingleFile(filePath);
+        } catch (IOException e) {
+            System.err.println("ファイル読み込みエラー: " + filePath);
+            e.printStackTrace();
+        }
+
+        // 全ファイルの処理が完了した後、データをDBに書き込む (新しく渡されたデータでDB登録を実行)
         dataWriterService.writeDataToDbFinal();
 
         System.out.println("完了");
@@ -79,8 +76,16 @@ public class CsvFileReader implements CommandLineRunner {
 
             String line;
             while ((line = br.readLine()) != null) {
-                String cleanedLine = line.replaceAll("^\"|\"$", "");
-                String[] rawData = cleanedLine.split("\",\"");
+
+                // 行の最初と最後にある二重引用符を取り除く
+                String tempLine = line.trim();
+                if (tempLine.startsWith("\"") && tempLine.endsWith("\"")) {
+                    tempLine = tempLine.substring(1, tempLine.length() - 1);
+                }
+
+                // フィールド間の区切り文字 (",") で分割する
+                String[] rawData = tempLine.split("\",\"");
+
                 // データを DataWriterService に渡す
                 dataWriterService.processCsvRow(rawData);
             }
