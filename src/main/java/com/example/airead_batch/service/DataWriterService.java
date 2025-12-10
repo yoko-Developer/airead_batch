@@ -4,14 +4,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * CSV の行から必要な値（役員数・従業員数）を取り出してデータベースに書き込むクラス
+ * CSVの行から必要な値（役員数・従業員数）を取り出してデータベースに書き込むServiceクラス
+ * CSVを複数ファイルから読み取った後で writeDataToDbFinal()を呼び
+ * まとめてDBにINSERTする（欠損値は0置換）
  */
 @Service
 public class DataWriterService {
 
     private final JdbcTemplate jdbcTemplate;
 
-    // 役員数と従業員数を一時保存するための static 変数
+    // 一時保管
     private static Integer executiveCount = null;
     private static Integer employeeCount = null;
 
@@ -24,22 +26,22 @@ public class DataWriterService {
     }
 
     /**
-     * csvの1行を読み込む
-     * @param data
+     * CSVno
+     * 1行を受け取り、必要な値を抽出してメモリに保持する
+     * @param data CSV を split した配列
      */
     public void processCsvRow(String[] data) {
-
-        // 必須列チェック（ItemNameとValueが最低限必要）
-        if (data.length < 5) {
+        if (data == null || data.length < 5) {
             return;
         }
 
-        String itemName = data[0].trim();
-        String valueStr = data[4].trim();
+        String itemName = data[0] != null ? data[0].trim() : "";
+        String valueStr = data[4] != null ? data[4].trim() : "";
 
-        // 役員数
+        // 役員数（CSV のラベルが「人数」で出ているケースを先生が使っているようならそのまま）
         if ("人数".equals(itemName)) {
             executiveCount = safelyParse(valueStr);
+            return;
         }
 
         // 従業員数
@@ -49,58 +51,41 @@ public class DataWriterService {
     }
 
     /**
-     * すべてのCSVファイルの読み込みが完了した後
-     * 抽出した役員数と従業員数をデータベースにまとめて書き込む
-     * 書き込み後、一時保存したデータはリセットされる
+     * すべてのCSVの読み込みが終わった後に呼びだす
+     * 役員数・従業員数どちらかがnullの場合は0補完
      */
     public void writeDataToDbFinal() {
-
-        // 役員数、従業員数がどちらもNULLの場合はスキップ
         if (executiveCount == null && employeeCount == null) {
             System.out.println("DB登録に必要な項目がないためスキップ");
             return;
         }
 
-        // 役員数と従業員数のどちらかあればDBに書き込む
-        if (executiveCount != null && employeeCount != null) {
-            try {
-                jdbcTemplate.update(
-                        INSERT_SQL,
-                        "0", // dummy_id (結合テストが成功したら、このIDをユニークな値に変更する必要があります)
-                        executiveCount,
-                        employeeCount
-                );
+        int exec = (executiveCount != null) ? executiveCount : 0;
+        int emp = (employeeCount != null) ? employeeCount : 0;
 
-                // DB登録成功メッセージを分かりやすく出力 (nullの場合は"NULL"と表示)
-                String execCount = (executiveCount != null) ? executiveCount.toString() : "NULL";
-                String empCount = (employeeCount != null) ? employeeCount.toString() : "NULL";
-
-                System.out.println("DB登録成功！役員数:" + execCount + ", 従業員数:" + empCount);
-
-                // 登録後、一時保存した値をリセット
-                executiveCount = null;
-                employeeCount = null;
-
-            } catch (Exception e) {
-                System.err.println("DB書き込みエラー: " + e.getMessage());
-            }
-        } else {
-            // どちらの項目もCSVに見つからなかった場合はスキップ
-            System.out.println("スキップ: DB登録に必要項目なし");
+        try {
+            jdbcTemplate.update(INSERT_SQL, "0", exec, emp);
+            System.out.println("DB登録成功！役員数:" + exec + ", 従業員数:" + emp);
+        } catch (Exception e) {
+            System.err.println("DB書き込みエラー: " + e.getMessage());
+        } finally {
+            // リセットして次の帳票に備える
+            executiveCount = null;
+            employeeCount = null;
         }
     }
 
+    /**
+     * 数字以外を取り除いてIntegerにして失敗時は0を返す
+     */
     private Integer safelyParse(String valueStr) {
-        // 数字以外を全て削除
+        if (valueStr == null) return 0;
         String cleaned = valueStr.trim().replaceAll("[^0-9]", "");
-
-        if (cleaned.isEmpty()) {
-            return 0; // 空文字はゼロとして扱う
-        }
+        if (cleaned.isEmpty()) return 0;
         try {
             return Integer.parseInt(cleaned);
-        } catch (NumberFormatException ignored) {
-            return 0; // 解析失敗時はゼロとして扱う
+        } catch (NumberFormatException ex) {
+            return 0;
         }
     }
 }
