@@ -3,12 +3,15 @@ package com.example.airead_batch.service;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+/**
+ * 役員数、従業員数を抽出してデータベースへ登録するSereviceクラス
+ */
 @Service
 public class DataWriterService {
 
     private final JdbcTemplate jdbcTemplate;
 
-    // NULLを許容
+    // NULLを許容する Integer型に変更 (DB登録時に null を渡すため)
     private Integer executiveCount = null;
     private Integer employeeCount = null;
 
@@ -20,20 +23,27 @@ public class DataWriterService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    // Value の末尾のクォーテーションを削除
     public void processCsvRow(String[] data) {
 
         if (data == null || data.length < 5) return;
 
+        // すべてトリミングして、ItemName, RID, Value を取得
         String itemName = data[0].trim();
         String ridStr   = data[3].trim();
         String valueStr = data[4].trim();
 
-        // 役員数の取得
+        // Value末尾のクォーテーションを削除
+        if (valueStr.endsWith("\"")) {
+            valueStr = valueStr.substring(0, valueStr.length() - 1);
+        }
+
+        // 役員数の取得: ItemName="人数" かつ RID="6" (合計値)
         if ("人数".equals(itemName) && "6".equals(ridStr)) {
             executiveCount = safelyParse(valueStr);
         }
 
-        // 従業員数の取得
+        // 従業員数の取得: ItemName="従業員数" かつ RID="13" (合計値)
         if ("従業員数".equals(itemName) && "13".equals(ridStr)) {
             employeeCount = safelyParse(valueStr);
         }
@@ -47,18 +57,20 @@ public class DataWriterService {
             return;
         }
 
-        // DBに書き込む値を取得（nullの場合は0として扱うか、DB定義に従いnullを渡す）
+        // DBに書き込む値のログ出力 (NULLの場合も表示)
         String execCountStr = (executiveCount != null) ? executiveCount.toString() : "NULL";
         String empCountStr = (employeeCount != null) ? employeeCount.toString() : "NULL";
 
         try {
+            // DBに登録（主キー '0'、NULL許容で値を登録）
             jdbcTemplate.update(INSERT_SQL, "0", executiveCount, employeeCount);
 
             System.out.println("DB登録成功！役員数:" + execCountStr + ", 従業員数:" + empCountStr);
 
         } catch (Exception e) {
-            System.err.println("DB書き込みエラー: " + e.getMessage());
-
+            System.err.println("DB接続エラー: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
         } finally {
             // 登録後、一時保存した値をリセット
             executiveCount = null;
@@ -69,6 +81,7 @@ public class DataWriterService {
     private Integer safelyParse(String valueStr) {
         if (valueStr == null) return null;
 
+        // 数字(0-9)以外をすべて削除（カンマ、記号など）
         String cleaned = valueStr.replaceAll("[^0-9]", "");
 
         if (cleaned.isEmpty()) return null;
